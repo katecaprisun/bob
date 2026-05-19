@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>360° A-Frame Experience</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/aframe/1.5.0/aframe.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      background: #000;
+      overflow: hidden;
+    }
+
+    #scene-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+    }
+
+    a-scene {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* HUD Overlay */
+    #hud {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Top bar */
+    #top-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+    }
+
+    #logo {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.1rem;
+      font-weight: 900;
+      letter-spacing: 0.25em;
+      color: #00ffe0;
+      text-shadow: 0 0 18px #00ffe0aa;
+    }
+
+    #logo span {
+      color: #fff;
+      opacity: 0.5;
+    }
+
+    #status {
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      color: #ffffff88;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #00ffe0;
+      box-shadow: 0 0 8px #00ffe0;
+      animation: blink 1.4s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    /* Corner brackets */
+    .corner {
+      position: absolute;
+      width: 36px; height: 36px;
+      border-color: #00ffe066;
+      border-style: solid;
+    }
+    .corner.tl { top: 14px; left: 14px; border-width: 2px 0 0 2px; }
+    .corner.tr { top: 14px; right: 14px; border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 14px; left: 14px; border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 14px; right: 14px; border-width: 0 2px 2px 0; }
+
+    /* Crosshair */
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 24px; height: 24px;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: #00ffe0aa;
+    }
+    #crosshair::before {
+      width: 1px; height: 100%;
+      top: 0; left: 50%;
+    }
+    #crosshair::after {
+      width: 100%; height: 1px;
+      top: 50%; left: 0;
+    }
+    .crosshair-ring {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px; height: 16px;
+      border: 1px solid #00ffe066;
+      border-radius: 50%;
+    }
+
+    /* Bottom info bar */
+    #bottom-bar {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 18px 28px;
+      background: linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+
+    #scene-info h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+      letter-spacing: 0.1em;
+      text-shadow: 0 2px 20px #000;
+      margin-bottom: 4px;
+    }
+
+    #scene-info p {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      color: #ffffff66;
+    }
+
+    #controls-hint {
+      font-size: 0.6rem;
+      letter-spacing: 0.1em;
+      color: #ffffff55;
+      text-align: right;
+      line-height: 1.8;
+    }
+
+    /* Scene switcher */
+    #scene-switcher {
+      position: absolute;
+      right: 28px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: all;
+    }
+
+    .scene-btn {
+      width: 42px; height: 42px;
+      border: 1px solid #00ffe044;
+      background: rgba(0, 255, 224, 0.05);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .scene-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #00ffe022, transparent);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .scene-btn:hover::before,
+    .scene-btn.active::before { opacity: 1; }
+
+    .scene-btn:hover,
+    .scene-btn.active {
+      border-color: #00ffe0aa;
+      box-shadow: 0 0 16px #00ffe022, inset 0 0 8px #00ffe011;
+    }
+
+    .scene-btn svg {
+      width: 18px; height: 18px;
+      fill: none;
+      stroke: #00ffe0;
+      stroke-width: 1.5;
+      opacity: 0.6;
+      transition: opacity 0.2s;
+    }
+
+    .scene-btn:hover svg,
+    .scene-btn.active svg { opacity: 1; }
+
+    /* Loading screen */
+    #loading {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: opacity 0.8s ease;
+    }
+
+    #loading h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 1.8rem;
+      color: #00ffe0;
+      letter-spacing: 0.3em;
+      text-shadow: 0 0 30px #00ffe0;
+      margin-bottom: 12px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    #loading p {
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      color: #ffffff44;
+    }
+
+    .load-bar {
+      width: 200px;
+      height: 2px;
+      background: #ffffff11;
+      margin-top: 24px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .load-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00ffe0, #007aff);
+      width: 0%;
+      animation: fill 1.6s ease-out forwards 0.3s;
+      box-shadow: 0 0 8px #00ffe0;
+    }
+
+    @keyframes fill {
+      to { width: 100%; }
+    }
+
+    #loading.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <h2>IMMERSE</h2>
+  <p>INITIALIZING 360° ENVIRONMENT</p>
+  <div class="load-bar"><div class="load-fill"></div></div>
+</div>
+
+<!-- Scene -->
+<div id="scene-container">
+  <a-scene id="main-scene" embedded vr-mode-ui="enabled: true" loading-screen="enabled: false">
+
+    <!-- Assets -->
+    <a-assets>
+      <!-- Sky gradients built procedurally via sky primitives + atmospherics -->
+    </a-assets>
+
+    <!-- ============ SCENE 1: COSMIC NEBULA ============ -->
+    <a-entity id="scene1" visible="true">
+      <!-- Deep space sky -->
+      <a-sky color="#0a001a"></a-sky>
+
+      <!-- Star field -->
+      <a-entity id="stars">
+        <!-- Generated stars as small spheres -->
+      </a-entity>
+
+      <!-- Nebula cloud (large glowing spheres) -->
+      <a-sphere position="0 0 -30" radius="12" color="#6600cc" opacity="0.12" side="back"></a-sphere>
+      <a-sphere position="15 5 -25" radius="8" color="#cc0066" opacity="0.1" side="back"></a-sphere>
+      <a-sphere position="-12 -3 -20" radius="10" color="#003399" opacity="0.15" side="back"></a-sphere>
+
+      <!-- Floating geometric structures -->
+      <a-entity position="0 0 -8" animation="property: rotation; to: 0 360 0; dur: 30000; loop: true; easing: linear">
+        <a-ring color="#00ffe0" radius-inner="3" radius-outer="3.1" opacity="0.4" rotation="90 0 0"></a-ring>
+        <a-ring color="#ff00aa" radius-inner="4.5" radius-outer="4.6" opacity="0.25" rotation="90 20 0"></a-ring>
+        <a-ring color="#0088ff" radius-inner="6" radius-outer="6.1" opacity="0.2" rotation="90 45 0"></a-ring>
+      </a-entity>
+
+      <!-- Monolith -->
+      <a-box position="0 -1 -12" width="0.5" height="4" depth="0.3" color="#0a0a0a" 
+             metalness="0.9" roughness="0.1"
+             animation="property: position; from: 0 -1 -12; to: 0 0.2 -12; dur: 4000; dir: alternate; loop: true; easing: easeInOutSine">
+      </a-box>
+
+      <!-- Ambient particles (small glowing orbs) -->
+      <a-sphere position="5 2 -6" radius="0.04" color="#00ffe0" opacity="0.9"
+                animation="property: position; from: 5 2 -6; to: 5 4 -6; dur: 3000; dir: alternate; loop: true"></a-sphere>
+      <a-sphere position="-4 1 -7" radius="0.04" color="#ff00aa" opacity="0.9"
+                animation="property: position; from: -4 1 -7; to: -4 3 -7; dur: 2500; dir: alternate; loop: true"></a-sphere>
+      <a-sphere position="2 -1 -5" radius="0.03" color="#ffaa00" opacity="0.8"
+                animation="property: position; from: 2 -1 -5; to: 2 1.5 -5; dur: 3500; dir: alternate; loop: true"></a-sphere>
+      <a-sphere position="-7 0 -9" radius="0.05" color="#00ff88" opacity="0.7"
+                animation="property: position; from: -7 0 -9; to: -7 2 -9; dur: 4200; dir: alternate; loop: true"></a-sphere>
+
+      <!-- Ground plane -->
+      <a-plane position="0 -2 0" rotation="-90 0 0" width="100" height="100" 
+               color="#05000f" metalness="0.5" roughness="0.8" opacity="0.95"></a-plane>
+
+      <!-- Ground grid lines -->
+      <a-entity position="0 -1.98 0" rotation="-90 0 0">
+        <a-entity geometry="primitive: plane; width: 60; height: 60" 
+                  material="color: #00ffe0; wireframe: true; opacity: 0.08"></a-entity>
+      </a-entity>
+    </a-entity>
+
+    <!-- ============ SCENE 2: UNDERWATER ABYSS ============ -->
+    <a-entity id="scene2" visible="false">
+      <a-sky color="#001525"></a-sky>
+
+      <!-- Caustic light beams -->
+      <a-entity position="0 8 -5" rotation="10 0 5">
+        <a-cylinder height="15" radius="1.5" color="#00aaff" opacity="0.04" 
+                    animation="property: rotation; to: 5 0 10; dur: 4000; dir: alternate; loop: true; easing: easeInOutSine"></a-cylinder>
+        <a-cylinder height="15" radius="0.8" color="#00ccff" opacity="0.05" position="2 0 1"
+                    animation="property: rotation; to: -5 0 -8; dur: 5000; dir: alternate; loop: true; easing: easeInOutSine"></a-cylinder>
+      </a-entity>
+
+      <!-- Coral formations -->
+      <a-entity position="-6 -2 -10">
+        <a-cylinder height="2" radius="0.2" color="#ff4455" position="0 0 0"></a-cylinder>
+        <a-cylinder height="1.5" radius="0.15" color="#ff6644" position="0.4 -0.25 0.2" rotation="10 0 15"></a-cylinder>
+        <a-cylinder height="1.8" radius="0.18" color="#ff3366" position="-0.3 -0.1 -0.1" rotation="-8 0 -10"></a-cylinder>
+        <a-sphere radius="0.3" color="#ff2244" position="0 1 0" opacity="0.8"></a-sphere>
+        <a-sphere radius="0.22" color="#ff5533" position="0.4 1.25 0.2" opacity="0.8"></a-sphere>
+      </a-entity>
+
+      <a-entity position="6 -2 -8">
+        <a-cylinder height="2.5" radius="0.25" color="#aa33ff" position="0 0 0"></a-cylinder>
+        <a-cylinder height="2" radius="0.18" color="#8833ff" position="-0.5 -0.25 0.3" rotation="-12 0 -15"></a-cylinder>
+        <a-sphere radius="0.35" color="#cc22ff" position="0 1.25 0" opacity="0.8"></a-sphere>
+      </a-entity>
+
+      <!-- Floating jellyfish -->
+      <a-entity position="0 1 -6"
+                animation="property: position; from: 0 1 -6; to: 0 2.5 -6; dur: 4000; dir: alternate; loop: true; easing: easeInOutSine">
+        <a-sphere radius="0.6" color="#ff66bb" opacity="0.5"
+                  animation="property: scale; from: 1 1 1; to: 1 0.85 1; dur: 800; dir: alternate; loop: true"></a-sphere>
+        <a-cylinder height="1.5" radius="0.02" color="#ff66bb" opacity="0.3" position="0.1 -0.9 0.05"></a-cylinder>
+        <a-cylinder height="1.2" radius="0.02" color="#ff88cc" opacity="0.3" position="-0.15 -0.8 0.1"></a-cylinder>
+        <a-cylinder height="1.8" radius="0.02" color="#ff66bb" opacity="0.3" position="0.05 -1 -0.15"></a-cylinder>
+      </a-entity>
+
+      <a-entity position="-3 0.5 -7"
+                animation="property: position; from: -3 0.5 -7; to: -3 2 -7; dur: 5500; dir: alternate; loop: true; easing: easeInOutSine">
+        <a-sphere radius="0.45" color="#66bbff" opacity="0.5"
+                  animation="property: scale; from: 1 1 1; to: 1 0.8 1; dur: 1000; dir: alternate; loop: true"></a-sphere>
+        <a-cylinder height="1.2" radius="0.02" color="#66bbff" opacity="0.3" position="0.08 -0.7 0"></a-cylinder>
+        <a-cylinder height="1" radius="0.02" color="#88ccff" opacity="0.3" position="-0.1 -0.65 0.08"></a-cylinder>
+      </a-entity>
+
+      <!-- Ground: sand -->
+      <a-plane position="0 -2.5 0" rotation="-90 0 0" width="100" height="100" color="#0d1a24"></a-plane>
+
+      <!-- Bubble particles -->
+      <a-sphere position="3 -2 -4" radius="0.05" color="#aaddff" opacity="0.5"
+                animation="property: position; from: 3 -2 -4; to: 3.2 2 -4.1; dur: 4000; loop: true; easing: easeInCubic"></a-sphere>
+      <a-sphere position="-2 -2 -5" radius="0.04" color="#88ccff" opacity="0.4"
+                animation="property: position; from: -2 -2 -5; to: -1.8 2.5 -4.9; dur: 5500; loop: true; easing: easeInCubic"></a-sphere>
+      <a-sphere position="1 -2 -6" radius="0.06" color="#aaddff" opacity="0.45"
+                animation="property: position; from: 1 -2 -6; to: 0.9 3 -5.8; dur: 3800; loop: true; easing: easeInCubic"></a-sphere>
+    </a-entity>
+
+    <!-- ============ SCENE 3: ANCIENT RUINS ============ -->
+    <a-entity id="scene3" visible="false">
+      <a-sky color="#1a1005"></a-sky>
+
+      <!-- Warm sunset haze -->
+      <a-sphere radius="80" color="#ff6600" opacity="0.04" side="back"
+                animation="property: rotation; to: 0 360 0; dur: 60000; loop: true; easing: linear"></a-sphere>
+
+      <!-- Pillars -->
+      <a-entity id="pillars">
+        <a-cylinder position="-5 0 -8" height="6" radius="0.4" color="#8b7355" roughness="0.9"></a-cylinder>
+        <a-cylinder position="5 0 -8" height="6" radius="0.4" color="#7a6348" roughness="0.9"></a-cylinder>
+        <a-cylinder position="-5 0 8" height="5.5" radius="0.4" color="#8b7355" roughness="0.9"></a-cylinder>
+        <a-cylinder position="5 0 8" height="4" radius="0.4" color="#7a6348" roughness="0.9"></a-cylinder>
+        <!-- Broken pillar cap -->
+        <a-cylinder position="-5 3.2 -8" height="0.4" radius="0.55" color="#6e5e44"></a-cylinder>
+        <a-cylinder position="5 3.2 -8" height="0.4" radius="0.55" color="#6e5e44"></a-cylinder>
+      </a-entity>
+
+      <!-- Arch / Doorway -->
+      <a-entity position="0 0 -10">
+        <a-box position="-1.2 1.5 0" width="0.5" height="3" depth="0.5" color="#8b7355"></a-box>
+        <a-box position="1.2 1.5 0" width="0.5" height="3" depth="0.5" color="#8b7355"></a-box>
+        <a-torus position="0 3.5 0" radius="1.2" radius-tubular="0.22" rotation="90 0 0" color="#7a6348" arc="180"></a-torus>
+      </a-entity>
+
+      <!-- Altar / Block -->
+      <a-box position="0 -1.5 -5" width="2" height="1.2" depth="1.2" color="#6e5e44" roughness="0.9"></a-box>
+      <!-- Glowing artifact on altar -->
+      <a-sphere position="0 -0.7 -5" radius="0.25" color="#ffcc00" emissive="#ff8800" emissive-intensity="0.8"
+                animation="property: scale; from: 1 1 1; to: 1.1 1.1 1.1; dur: 1500; dir: alternate; loop: true">
+      </a-sphere>
+
+      <!-- Ground: dusty stone -->
+      <a-plane position="0 -2 0" rotation="-90 0 0" width="100" height="100" color="#2a1f10" roughness="0.95"></a-plane>
+
+      <!-- Debris blocks -->
+      <a-box position="-3 -1.7 -4" width="0.8" height="0.6" depth="0.9" color="#6e5e44" rotation="0 30 5"></a-box>
+      <a-box position="4 -1.8 -3" width="0.5" height="0.4" depth="0.6" color="#7a6348" rotation="0 -15 -8"></a-box>
+      <a-box position="-6 -1.7 2" width="0.9" height="0.7" depth="0.7" color="#6e5e44" rotation="0 60 10"></a-box>
+
+      <!-- Atmospheric dust particles -->
+      <a-sphere position="2 0 -3" radius="0.03" color="#ffcc66" opacity="0.6"
+                animation="property: position; from: 2 0 -3; to: 2.5 1.5 -3.2; dur: 5000; dir: alternate; loop: true"></a-sphere>
+      <a-sphere position="-1 0.5 -4" radius="0.025" color="#ffaa44" opacity="0.5"
+                animation="property: position; from: -1 0.5 -4; to: -0.5 2 -3.8; dur: 4000; dir: alternate; loop: true"></a-sphere>
+    </a-entity>
+
+    <!-- Camera with look controls -->
+    <a-entity id="rig" position="0 0 0">
+      <a-camera look-controls="reverseMouseDrag: false; touchEnabled: true" 
+                wasd-controls="enabled: false"
+                fov="80"
+                cursor="rayOrigin: mouse">
+      </a-camera>
+    </a-entity>
+
+    <!-- Ambient lighting -->
+    <a-light type="ambient" color="#334" intensity="0.6"></a-light>
+    <a-light type="directional" position="1 2 -1" color="#8888ff" intensity="0.4"></a-light>
+  </a-scene>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <!-- Corners -->
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <!-- Top bar -->
+  <div id="top-bar">
+    <div id="logo">IMMERSE <span>// 360°</span></div>
+    <div id="status"><div class="dot"></div>LIVE RENDER</div>
+  </div>
+
+  <!-- Crosshair -->
+  <div id="crosshair">
+    <div class="crosshair-ring"></div>
+  </div>
+
+  <!-- Scene switcher -->
+  <div id="scene-switcher">
+    <button class="scene-btn active" data-scene="1" title="Cosmic Nebula" onclick="switchScene(1, this)">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8" stroke-dasharray="2 3"/></svg>
+    </button>
+    <button class="scene-btn" data-scene="2" title="Underwater Abyss" onclick="switchScene(2, this)">
+      <svg viewBox="0 0 24 24"><path d="M3 8 Q8 4 12 8 Q16 12 21 8"/><path d="M3 14 Q8 10 12 14 Q16 18 21 14"/></svg>
+    </button>
+    <button class="scene-btn" data-scene="3" title="Ancient Ruins" onclick="switchScene(3, this)">
+      <svg viewBox="0 0 24 24"><rect x="4" y="14" width="2" height="7"/><rect x="11" y="10" width="2" height="11"/><rect x="18" y="14" width="2" height="7"/><rect x="3" y="13" width="18" height="1.5" rx="0.5"/></svg>
+    </button>
+  </div>
+
+  <!-- Bottom bar -->
+  <div id="bottom-bar">
+    <div id="scene-info">
+      <h1 id="scene-title">COSMIC NEBULA</h1>
+      <p id="scene-sub">DEEP SPACE // SECTOR 7G</p>
+    </div>
+    <div id="controls-hint">
+      DRAG TO LOOK AROUND<br>
+      TAP ICONS TO SWITCH SCENES<br>
+      VR HEADSET SUPPORTED
+    </div>
+  </div>
+</div>
+
+<script>
+  const scenes = {
+    1: {
+      el: 'scene1',
+      title: 'COSMIC NEBULA',
+      sub: 'DEEP SPACE // SECTOR 7G',
+      light: '#334',
+    },
+    2: {
+      el: 'scene2',
+      title: 'UNDERWATER ABYSS',
+      sub: 'PACIFIC TRENCH // -4200m',
+      light: '#003355',
+    },
+    3: {
+      el: 'scene3',
+      title: 'ANCIENT RUINS',
+      sub: 'UNKNOWN CIVILIZATION // ~3000 BCE',
+      light: '#33220a',
+    }
+  };
+
+  let currentScene = 1;
+
+  function switchScene(num, btn) {
+    if (num === currentScene) return;
+
+    // Hide current
+    document.getElementById(scenes[currentScene].el).setAttribute('visible', false);
+    document.querySelectorAll('.scene-btn').forEach(b => b.classList.remove('active'));
+
+    // Show new
+    currentScene = num;
+    document.getElementById(scenes[num].el).setAttribute('visible', true);
+    btn.classList.add('active');
+
+    // Update HUD
+    document.getElementById('scene-title').textContent = scenes[num].title;
+    document.getElementById('scene-sub').textContent = scenes[num].sub;
+
+    // Update ambient light
+    document.querySelector('a-light[type="ambient"]').setAttribute('color', scenes[num].light);
+  }
+
+  // Hide loading screen after delay
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      document.getElementById('loading').classList.add('hidden');
+    }, 1800);
+  });
+
+  // Generate stars programmatically
+  document.addEventListener('DOMContentLoaded', () => {
+    const scene1 = document.getElementById('scene1');
+    const starCount = 200;
+    for (let i = 0; i < starCount; i++) {
+      const phi = Math.acos(2 * Math.random() - 1);
+      const theta = 2 * Math.PI * Math.random();
+      const r = 45 + Math.random() * 5;
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+      const size = 0.02 + Math.random() * 0.08;
+      const brightness = Math.random();
+      const hue = Math.random() > 0.8 ? (Math.random() > 0.5 ? '#aaddff' : '#ffddaa') : '#ffffff';
+      const star = document.createElement('a-sphere');
+      star.setAttribute('position', `${x} ${y} ${z}`);
+      star.setAttribute('radius', size);
+      star.setAttribute('color', hue);
+      star.setAttribute('opacity', 0.4 + brightness * 0.6);
+      if (Math.random() > 0.7) {
+        star.setAttribute('animation', `property: opacity; from: ${0.4 + brightness * 0.6}; to: ${0.1 + Math.random() * 0.3}; dur: ${1000 + Math.random() * 3000}; dir: alternate; loop: true`);
+      }
+      scene1.appendChild(star);
+    }
+  });
+</script>
+</body>
+</html>
